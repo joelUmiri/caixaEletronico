@@ -1,150 +1,118 @@
-package caixaEletronico;
-
-import java.util.Scanner;
+package caixaeletronico;
 
 public class CaixaEletronico implements ICaixaEletronico {
-	
-	
-    private int[] notas = {100, 50, 20, 10, 5, 2};
-    private int[] quantidades = {0, 0, 0, 0, 0, 0};
-    
-    private int cotaMinima = 0;
-	
 
+	private int[][] notas = { { 100, 0 }, { 50, 0 }, { 20, 0 }, { 10, 0 }, { 5, 0 }, { 2, 0 } };
+
+	private int cotaMinima = 0;
+
+	@Override
 	public String pegaRelatorioCedulas() {
-		
 		String resposta = "Relatório de Notas:\n";
-
-        for (int i = 0; i < notas.length; i++) {
-            resposta += "R$ " + notas[i] + ": " + quantidades[i] + " unidade(s)\n";
-        }
-		
+		for (int i = 0; i < notas.length; i++) {
+			// [i][0] é o valor da nota, [i][1] é a quantidade
+			resposta += "R$ " + notas[i][0] + ": " + notas[i][1] + " unidade(s)\n";
+		}
 		return resposta;
 	}
 
+	@Override
 	public String pegaValorTotalDisponivel() {
-		
 		int total = 0;
-        for (int i = 0; i < notas.length; i++) {
-            total += notas[i] * quantidades[i];
-        }
-
-        String resposta = "R$ " + total;
-        return resposta;
-		
-		
-		
+		for (int i = 0; i < notas.length; i++) {
+			total += notas[i][0] * notas[i][1];
+		}
+		return "R$ " + total;
 	}
 
+	@Override
 	public String reposicaoCedulas(Integer cedula, Integer quantidade) {
-		String resposta = "Nota de R$ " + cedula + " não reconhecida.";
-	    
-	    for (int i = 0; i < notas.length; i++) {
-	        if (notas[i] == cedula) { 
-	            quantidades[i] += quantidade; 
-	            resposta = "Reposição de " + quantidade + " notas de R$ " + cedula + " realizada!";
-	            break; 
-	        }
-	    }
-		
-		return resposta;
+		for (int i = 0; i < notas.length; i++) {
+			if (notas[i][0] == cedula) {
+				notas[i][1] += quantidade;
+				return "Reposição de " + quantidade + " notas de R$ " + cedula + " realizada!";
+			}
+		}
+		return "Nota de R$ " + cedula + " não reconhecida.";
 	}
 
+	@Override
 	public String sacar(Integer valor) {
-	    int totalAtual = calcularSomaNumerica();
-	    if (totalAtual < cotaMinima) {
-	        return "Caixa Vazio: Chame o Operador";
-	    }
+		// Cálculo do saldo total numérico para verificar a cota mínima
+		int totalNoCaixa = 0;
+		for (int i = 0; i < notas.length; i++) {
+			totalNoCaixa += notas[i][0] * notas[i][1];
+		}
 
-	    int restante = valor;
-	    int[] notasParaDar = new int[6]; 
-	    for (int i = 0; i < notas.length; i++) {
-	        int qtdNecessaria = restante / notas[i];
-	        int qtdDisponivel = quantidades[i];
+		// Se o saldo total for menor que a cota, para o atendimento
+		if (totalNoCaixa <= cotaMinima) {
+			return "Caixa Vazio: Chame o Operador";
+		}
 
-	        if (qtdNecessaria > 0) {
-	            int entregaReal = Math.min(qtdNecessaria, qtdDisponivel);
-	            notasParaDar[i] = entregaReal;
-	            restante -= (entregaReal * notas[i]);
-	        }
-	    }
+		if (valor == 1 || valor == 3 || valor < 0) {
+			return "Não Temos Notas Para Este Saque";
+		}
 
-	   
-	    if (restante == 0) {
-	        String resposta = "Saque de R$ " + valor + " realizado. Notas entregues:\n";
-	        for (int i = 0; i < notas.length; i++) {
-	            if (notasParaDar[i] > 0) {
-	                quantidades[i] -= notasParaDar[i];
-	                resposta += notasParaDar[i] + " nota(s) de R$ " + notas[i] + "\n";
-	            }
-	        }
-	        return resposta;
-	    } else {
-	        return "Não Temos Notas Para Este Saque";
-	    }
+		int restante = valor;
+		int[] notasParaDar = new int[6];
+
+		// Passo de Segurança: Se for ímpar, obriga o uso de uma nota de 5 para ficar
+		// par
+		if (restante % 2 != 0) {
+			if (notas[4][1] > 0) { // estoque[4] é a linha da nota de 5[cite: 1]
+				notasParaDar[4] = 1;
+				restante -= 5;
+			} else {
+				return "Não Temos Notas Para Este Saque";
+			}
+		}
+
+		// Loop de distribuição priorizando as maiores notas[cite: 1]
+		for (int i = 0; i < notas.length; i++) {
+			int valorNota = notas[i][0];
+			int qtdNecessaria = restante / valorNota;
+			int entregaReal = Math.min(qtdNecessaria, notas[i][1]);
+
+			// Lógica para não deixar o restante ímpar (1 ou 3) ao usar notas de 5
+			if (valorNota == 5 && entregaReal > 0) {
+				if ((restante - (entregaReal * 5)) % 2 != 0) {
+					entregaReal--;
+				}
+			}
+
+			notasParaDar[i] += entregaReal;
+			restante -= (entregaReal * valorNota);
+		}
+
+		// Verificação do limite de 30 cédulas por saque[cite: 1]
+		int totalNotasSaque = 0;
+		for (int qtd : notasParaDar)
+			totalNotasSaque += qtd;
+
+		if (restante == 0 && totalNotasSaque <= 30) {
+			String resposta = "Saque de R$ " + valor + " realizado:\n";
+			for (int i = 0; i < notas.length; i++) {
+				if (notasParaDar[i] > 0) {
+					notas[i][1] -= notasParaDar[i]; // Atualiza a matriz de quantidades[cite: 1]
+					resposta += notasParaDar[i] + " nota(s) de R$ " + notas[i][0] + "\n";
+				}
+			}
+			return resposta;
+		} else if (totalNotasSaque > 30) {
+			return "Limite de 30 cédulas excedido."; // Regra obrigatória[cite: 1]
+		} else {
+			return "Não Temos Notas Para Este Saque";
+		}
 	}
 
-	private int calcularSomaNumerica() {
-	    int soma = 0;
-	    for (int i = 0; i < notas.length; i++) {
-	        soma += notas[i] * quantidades[i];
-	    }
-	    return soma;
-	}
-
+	@Override
 	public String armazenaCotaMinima(Integer minimo) {
-	    this.cotaMinima = minimo; 
-	
-	    String resposta = "Cota mínima definida para: R$ " + minimo;
-		return resposta;
+		this.cotaMinima = minimo;
+		return "Cota mínima definida para: R$ " + minimo;
 	}
 
 	public static void main(String arg[]) {
-		//GUI janela = new GUI(CaixaEletronico.class);
-		//janela.show();
-		
-		CaixaEletronico caixa = new CaixaEletronico();
-		Scanner teclado = new Scanner(System.in);
-		int opcao = -1;
-
-		System.out.println("=== SISTEMA DE CAIXA ELETRÔNICO (MODO CONSOLE) ===");
-
-		while (opcao != 0) {
-			System.out.println("\n1- Reposição | 2- Sacar | 3- Saldo | 4- Relatório | 5- Cota Mínima | 0- Sair");
-			System.out.print("Escolha uma opção: ");
-			opcao = teclado.nextInt();
-
-			switch (opcao) {
-				case 1:
-					System.out.print("Valor da cédula (2, 5, 10, 20, 50, 100): ");
-					int ced = teclado.nextInt();
-					System.out.print("Quantidade: ");
-					int qtd = teclado.nextInt();
-					System.out.println(caixa.reposicaoCedulas(ced, qtd));
-					break;
-				case 2:
-					System.out.print("Valor do saque: ");
-					int valor = teclado.nextInt();
-					System.out.println(caixa.sacar(valor));
-					break;
-				case 3:
-					System.out.println("Saldo Total: " + caixa.pegaValorTotalDisponivel());
-					break;
-				case 4:
-					System.out.println(caixa.pegaRelatorioCedulas());
-					break;
-				case 5:
-					System.out.print("Novo valor de cota mínima: ");
-					int min = teclado.nextInt();
-					System.out.println(caixa.armazenaCotaMinima(min));
-					break;
-				case 0:
-					System.out.println("Encerrando...");
-					break;
-				default:
-					System.out.println("Opção inválida!");
-			}
-		}
-		teclado.close();
+		CaixaEletronico logica = new CaixaEletronico(); // cria uma nova instancia da classe
+		new GUI(logica); // cria uma GUI utilizando a estrutura da classe CaixaEletronico
 	}
 }
