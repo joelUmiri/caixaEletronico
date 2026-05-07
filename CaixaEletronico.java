@@ -42,75 +42,98 @@ public class CaixaEletronico implements ICaixaEletronico {
 
 	@Override
 	public String sacar(Integer valor) {
-		// Calcula quanto dinheiro tem no total antes de começar o saque
-		int totalNoCaixa = 0;
-		for (int i = 0; i < notas.length; i++) {
-			totalNoCaixa += notas[i][0] * notas[i][1];
-		}
+	    // Calcula o valor total que tem no caixa pra saber se dá pra começar a brincadeira
+	    int totalNoCaixa = 0;
+	    for (int i = 0; i < notas.length; i++) {
+	        totalNoCaixa += notas[i][0] * notas[i][1];
+	    }
 
-		// Trava de segurança: impede o saque se o valor no caixa for menor ou igual à cota
-		if (totalNoCaixa <= cotaMinima) {
-			return "Caixa Vazio: Chame o Operador";
-		}
+	    // Se o que tem no caixa for menor ou igual à reserva (cota mínima), o banco nem abre
+	    if (totalNoCaixa <= cotaMinima) return "Caixa Vazio: Chame o Operador";
+	    
+	    // Trava para valores que nota de 2 e 5 não pagam (1 e 3 reais) ou valores zoados
+	    if (valor == 1 || valor == 3 || valor <= 0) return "Não Temos Notas Para Este Saque";
 
-		// Verifica valores que não podem ser formados com as notas disponíveis (2, 5, 10...)
-		if (valor == 1 || valor == 3 || valor < 0) {
-			return "Não Temos Notas Para Este Saque";
-		}
+	    int[] notasDefinitivas = new int[6]; 
+	    boolean conseguiu = false;
 
-		int restante = valor;
-		int[] notasParaDar = new int[6]; // Array temporário para guardar o que será entregue
+	    // Pega o limite de notas de 100 e 50 que a gente tem no estoque para os testes
+	    int max100 = Math.min(valor / 100, notas[0][1]);
+	    int max50 = Math.min(valor / 50, notas[1][1]);
 
-		// Se o valor for ímpar, retira uma nota de 5 primeiro para tornar o resto par
-		if (restante % 2 != 0) {
-			if (notas[4][1] > 0) { 
-				notasParaDar[4] = 1;
-				restante -= 5;
-			} else {
-				return "Não Temos Notas Para Este Saque";
-			}
-		}
+	    // Aqui é onde o sistema testa as combinações. Se ele não conseguir pagar 
+	    // usando o máximo de 100 e 50, ele vai diminuindo uma por uma e tentando de novo.
+	    for (int t100 = max100; t100 >= 0; t100--) {
+	        for (int t50 = max50; t50 >= 0; t50--) {
+	            
+	            int restante = valor;
+	            int[] tentativaLocal = new int[6];
 
-		// Distribui as notas começando da maior (100) para a menor (2)
-		for (int i = 0; i < notas.length; i++) {
-			int valorNota = notas[i][0];
-			int qtdNecessaria = restante / valorNota;
-			
-			// Entrega pro entregaReal o maior número de notas desse tipo que tem no estoque
-			int entregaReal = Math.min(qtdNecessaria, notas[i][1]);
+	            // Usa a quantidade de notas de 100 definida por esse passo do loop
+	            tentativaLocal[0] = t100;
+	            restante -= (t100 * 100);
+	            
+	            if (restante < 0) continue; 
 
-			// Regra para não deixar o restante ímpar (como 1 ou 3) ao usar notas de 5
-			// Se for ímpar, usa uma nota 5 a menos.
-			if (valorNota == 5 && entregaReal > 0) {
-				if ((restante - (entregaReal * 5)) % 2 != 0) {
-					entregaReal--;
-				}
-			}
+	            // Usa a quantidade de notas de 50 definida por esse passo do loop
+	            int qtd50Efetiva = Math.min(t50, restante / 50);
+	            tentativaLocal[1] = qtd50Efetiva;
+	            restante -= (qtd50Efetiva * 50);
 
-			notasParaDar[i] += entregaReal;
-			restante -= (entregaReal * valorNota);
-		}
+	            // Se o valor for ímpar, a gente PRECISA gastar uma nota de 5 pra ele ficar par.
+	            // Se não tiver nota de 5 pra isso, essa combinação de 100 e 50 já não serve.
+	            if (restante % 2 != 0) {
+	                if (notas[4][1] > 0 && restante >= 5) {
+	                    tentativaLocal[4] = 1; 
+	                    restante -= 5;
+	                } else {
+	                    continue; 
+	                }
+	            }
 
-		// Soma o total de papéis (cédulas) que serão entregues
-		int totalNotasSaque = 0;
-		for (int qtd : notasParaDar)
-			totalNotasSaque += qtd;
+	            // Depois de decidir os 100, 50 e o 5 do ímpar, preenche o resto com o que tiver
+	            for (int i = 2; i < notas.length; i++) {
+	                int vNota = notas[i][0];
+	                if (vNota == 5 && tentativaLocal[4] == 1) continue; // Pula o 5 porque já usamos lá em cima
 
-		// Se conseguiu zerar o valor e não passou de 30 notas, finaliza o saque
-		if (restante == 0 && totalNotasSaque <= 30) {
-			String resposta = "Saque de R$ " + valor + " realizado:\n";
-			for (int i = 0; i < notas.length; i++) {
-				if (notasParaDar[i] > 0) {
-					notas[i][1] -= notasParaDar[i]; // Tira as notas do estoque real
-					resposta += notasParaDar[i] + " nota(s) de R$ " + notas[i][0] + "\n";
-				}
-			}
-			return resposta;
-		} else if (totalNotasSaque > 30) {
-			return "Limite de 30 cédulas excedido.";
-		} else {
-			return "Não Temos Notas Para Este Saque";
-		}
+	                int qtdNecessaria = restante / vNota;
+	                int entregaReal = Math.min(qtdNecessaria, notas[i][1]);
+	                
+	                tentativaLocal[i] += entregaReal;
+	                restante -= (entregaReal * vNota);
+	            }
+
+	            // Se o restante zerou, achamos a combinação perfeita de notas
+	            if (restante == 0) {
+	                notasDefinitivas = tentativaLocal;
+	                conseguiu = true;
+	                break; 
+	            }
+	        }
+	        if (conseguiu) break; 
+	    }
+
+	    // Se achou uma combinação, só falta ver se não deu papel demais e entregar
+	    if (conseguiu) {
+	        int totalNotasSaque = 0;
+	        for (int qtd : notasDefinitivas) totalNotasSaque += qtd;
+
+	        if (totalNotasSaque <= 30) {
+	            String resposta = "Saque de R$ " + valor + " realizado:\n";
+	            for (int i = 0; i < notas.length; i++) {
+	                if (notasDefinitivas[i] > 0) {
+	                    // Atualiza o estoque real tirando as notas que o cliente vai levar
+	                    notas[i][1] -= notasDefinitivas[i]; 
+	                    resposta += notasDefinitivas[i] + " nota(s) de R$ " + notas[i][0] + "\n";
+	                }
+	            }
+	            return resposta;
+	        } else {
+	            return "Limite de 30 cédulas excedido.";
+	        }
+	    }
+
+	    return "Não Temos Notas Para Este Saque";
 	}
 
 	@Override
