@@ -1,4 +1,4 @@
-package caixaEletronico;
+package caixaeletronico;
 
 public interface ICaixaEletronico {
 	
