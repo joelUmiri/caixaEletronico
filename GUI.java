@@ -7,7 +7,9 @@ import java.awt.event.*;
 // A classe GUI cria a janela do sistema e "escuta" os cliques nos botões (ActionListener)
 public class GUI extends JFrame implements ActionListener {
 
-	// Link para a classe que contém as regras de negócio (matriz, saques, etc.)
+	// Criar versão serial para que não dê um warning no JFrame
+	private static final long serialVersionUID = 1L; 
+	
 	private CaixaEletronico logica;
 
 	// Declaração dos botões da interface
